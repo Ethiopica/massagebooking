@@ -1,0 +1,21 @@
+{
+  "name": "massage",
+  "version": "1.0.0",
+  "description": "Massage service booking system",
+  "main": "next.config.mjs",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.104.1",
+    "next": "^16.2.4",
+    "nodemailer": "^8.0.6",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  }
+}
