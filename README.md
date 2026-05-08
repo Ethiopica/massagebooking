@@ -31,6 +31,7 @@ npm install
    - `SMTP_PASS`
    - `NOTIFICATION_FROM_EMAIL` (optional, defaults to `SMTP_USER`)
    - `TEAM_NOTIFICATION_EMAIL` (optional, defaults to `geteneshtegegn23@gmail.com`)
+   - `APP_BASE_URL` (required if you want the cancel button in email to work)
 
 ## 3) Run the app
 
@@ -45,3 +46,4 @@ Open `http://localhost:3000`.
 - The landing page hero image is stored at `public/hero-massage.png`.
 - Notifications are saved in Supabase inside the `notifications` table.
 - New booking emails are sent to the customer plus all active workers when SMTP is configured.
+- Booking email includes a card and a cancel button link when `APP_BASE_URL` is set.

@@ -38,9 +38,12 @@ function bookingToResponse(booking) {
 }
 
 function buildNotificationMessage(booking) {
-  return `Booking confirmed for ${booking.customer_name} (${booking.customer_email}) on ${new Date(
-    booking.start_at
-  ).toLocaleString()} for ${booking.duration_minutes} minutes (${booking.service_type}).`;
+  const formattedStartEn = new Date(booking.start_at).toLocaleString("en-US");
+  const formattedStartAm = new Date(booking.start_at).toLocaleString("am-ET");
+  return [
+    `Booking confirmed for ${booking.customer_name} (${booking.customer_email}) on ${formattedStartEn} for ${booking.duration_minutes} minutes (${booking.service_type}).`,
+    `ቀጠሮው ተረጋግጧል፡ ${booking.customer_name} (${booking.customer_email}) በ${formattedStartAm} ላይ ለ${booking.duration_minutes} ደቂቃ (${booking.service_type})።`,
+  ].join(" | ");
 }
 
 function createMailerTransport() {
@@ -64,7 +67,70 @@ function createMailerTransport() {
   });
 }
 
-async function sendBookingEmails({ booking, workerEmails, isCancellation = false }) {
+function getAppBaseUrl(request) {
+  const configuredBase =
+    process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "";
+  if (configuredBase) {
+    return configuredBase;
+  }
+
+  if (!request?.url) {
+    return "";
+  }
+
+  const requestUrl = new URL(request.url);
+  return `${requestUrl.protocol}//${requestUrl.host}`;
+}
+
+function buildBookingEmailHtml({ booking, isCancellation, appBaseUrl }) {
+  const formattedStartEn = new Date(booking.start_at).toLocaleString("en-US");
+  const formattedStartAm = new Date(booking.start_at).toLocaleString("am-ET");
+  const cancelUrl = appBaseUrl
+    ? `${appBaseUrl}/api/bookings/cancel?id=${encodeURIComponent(booking.id)}`
+    : "";
+
+  return `
+    <div style="background:#f3f6f8;padding:24px;font-family:Arial,sans-serif;color:#173046;">
+      <div style="max-width:620px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;border:1px solid #d8e3ea;">
+        <div style="background:linear-gradient(135deg,#0b6a59,#0ea47f);padding:18px 20px;color:#f1fffb;">
+          <h2 style="margin:0 0 6px;font-size:24px;">${
+            isCancellation ? "Booking Cancelled" : "Booking Notification"
+          }</h2>
+          <p style="margin:0;font-size:14px;opacity:0.95;">${
+            isCancellation
+              ? "ቀጠሮ ተሰርዟል።"
+              : "ቀጠሮ ማሳወቂያ (Booking card)"
+          }</p>
+        </div>
+        <div style="padding:18px 20px;">
+          <p style="margin:0 0 12px;"><strong>Customer / ደንበኛ:</strong> ${
+            booking.customer_name
+          } (${booking.customer_email})</p>
+          <p style="margin:0 0 12px;"><strong>Service / አገልግሎት:</strong> ${
+            booking.service_type
+          }</p>
+          <p style="margin:0 0 12px;"><strong>Start / መጀመሪያ:</strong> ${formattedStartEn}</p>
+          <p style="margin:0 0 16px;"><strong>Start (Amharic):</strong> ${formattedStartAm}</p>
+          <p style="margin:0 0 16px;"><strong>Duration / ቆይታ:</strong> ${
+            booking.duration_minutes
+          } minutes</p>
+          ${
+            !isCancellation && cancelUrl
+              ? `<a href="${cancelUrl}" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#fff1f3;color:#b21e35;border:1px solid #f3bdc7;text-decoration:none;font-weight:700;">Cancel Booking / ቀጠሮ ሰርዝ</a>`
+              : ""
+          }
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function sendBookingEmails({
+  booking,
+  workerEmails,
+  isCancellation = false,
+  appBaseUrl = "",
+}) {
   const transporter = createMailerTransport();
   if (!transporter) {
     return { sentCount: 0, warning: "SMTP is not configured." };
@@ -87,9 +153,10 @@ async function sendBookingEmails({ booking, workerEmails, isCancellation = false
   const fromAddress =
     process.env.NOTIFICATION_FROM_EMAIL || process.env.SMTP_USER;
   const subject = isCancellation
-    ? `Booking cancelled: ${booking.service_type}`
-    : `Booking confirmed: ${booking.service_type}`;
-  const formattedStart = new Date(booking.start_at).toLocaleString();
+    ? `Booking cancelled / ቀጠሮ ተሰርዟል: ${booking.service_type}`
+    : `Booking confirmed / ቀጠሮ ተረጋግጧል: ${booking.service_type}`;
+  const formattedStartEn = new Date(booking.start_at).toLocaleString("en-US");
+  const formattedStartAm = new Date(booking.start_at).toLocaleString("am-ET");
   const text = [
     `Hello,`,
     ``,
@@ -98,10 +165,18 @@ async function sendBookingEmails({ booking, workerEmails, isCancellation = false
       : `A new booking has been confirmed.`,
     `Customer: ${booking.customer_name} (${booking.customer_email})`,
     `Service: ${booking.service_type}`,
-    `Start: ${formattedStart}`,
+    `Start: ${formattedStartEn}`,
     `Duration: ${booking.duration_minutes} minutes`,
     ``,
-    `Thank you.`,
+    `ሰላም,`,
+    ``,
+    isCancellation ? `ቀጠሮ ተሰርዟል።` : `አዲስ ቀጠሮ ተረጋግጧል።`,
+    `ደንበኛ: ${booking.customer_name} (${booking.customer_email})`,
+    `አገልግሎት: ${booking.service_type}`,
+    `ጊዜ: ${formattedStartAm}`,
+    `ቆይታ: ${booking.duration_minutes} ደቂቃ`,
+    ``,
+    `Thank you. / እናመሰግናለን።`,
   ].join("\n");
 
   try {
@@ -110,6 +185,7 @@ async function sendBookingEmails({ booking, workerEmails, isCancellation = false
       to: recipients.join(","),
       subject,
       text,
+      html: buildBookingEmailHtml({ booking, isCancellation, appBaseUrl }),
     });
     return { sentCount: recipients.length, warning: null };
   } catch (error) {
@@ -278,6 +354,7 @@ export async function POST(request) {
       await sendBookingEmails({
         booking: inserted,
         workerEmails: (workers || []).map((worker) => worker.email),
+        appBaseUrl: getAppBaseUrl(request),
       });
 
     const mergedWarning = [notificationWarning, emailWarning]
@@ -372,6 +449,7 @@ export async function DELETE(request) {
         booking,
         workerEmails: (workers || []).map((worker) => worker.email),
         isCancellation: true,
+        appBaseUrl: getAppBaseUrl(request),
       });
 
     const mergedWarning = [notificationWarning, emailWarning]

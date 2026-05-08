@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const serviceOptions = ["Swedish Massage", "Deep Tissue Massage","Head and shoulder", "Half Massage", "Aromatherapy Massage"];
 
@@ -25,20 +25,8 @@ const translations = {
     durationMinutes: "Duration (minutes)",
     creating: "Creating...",
     confirmBooking: "Confirm Booking",
-    cancelBooking: "Cancel Booking",
-    cancelling: "Cancelling...",
-    cancelSuccess: "Booking cancelled successfully.",
     bookingSuccess: "Booking created successfully.",
-    notificationStatus: "Notification Status",
-    customerNotificationSent: "Customer notification sent: Yes",
-    workerNotificationsSent: "Worker notifications sent:",
-    totalRecipients: "Total recipients notified:",
     warningPrefix: "Booking created, but notification issue:",
-    emailRecipients: "Email recipients:",
-    upcomingBookings: "Upcoming Bookings",
-    loadingBookings: "Loading bookings...",
-    noBookings: "No bookings yet.",
-    to: "to",
     serviceLabels: {
       "Swedish Massage": "Swedish Massage",
       "Deep Tissue Massage": "Deep Tissue Massage",
@@ -65,20 +53,8 @@ const translations = {
     durationMinutes: "ቆይታ (ደቂቃ)",
     creating: "በመፍጠር ላይ...",
     confirmBooking: "ቀጠሮ ያረጋግጡ",
-    cancelBooking: "ቀጠሮ ሰርዝ",
-    cancelling: "በመሰረዝ ላይ...",
-    cancelSuccess: "ቀጠሮው በተሳካ ሁኔታ ተሰርዟል።",
     bookingSuccess: "ቀጠሮው በተሳካ ሁኔታ ተፈጥሯል።",
-    notificationStatus: "የማሳወቂያ ሁኔታ",
-    customerNotificationSent: "ለደንበኛ ማሳወቂያ ተልኳል: አዎ",
-    workerNotificationsSent: "ለሰራተኞች የተላኩ ማሳወቂያዎች:",
-    totalRecipients: "ጠቅላላ የተላከላቸው:",
     warningPrefix: "ቀጠሮ ተፈጥሯል፣ ነገር ግን የማሳወቂያ ችግር አለ:",
-    emailRecipients: "ኢሜይል ተቀባዮች:",
-    upcomingBookings: "የሚመጡ ቀጠሮዎች",
-    loadingBookings: "ቀጠሮዎችን በመጫን ላይ...",
-    noBookings: "እስካሁን ቀጠሮ የለም።",
-    to: "እስከ",
     serviceLabels: {
       "Swedish Massage": "ስዊዲሽ ማሳጅ",
       "Deep Tissue Massage": "ጥልቅ ቲሹ ማሳጅ",
@@ -91,10 +67,7 @@ const translations = {
 
 export default function HomePage() {
   const [language, setLanguage] = useState("en");
-  const [bookings, setBookings] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [cancellingId, setCancellingId] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [notificationInfo, setNotificationInfo] = useState(null);
@@ -106,30 +79,6 @@ export default function HomePage() {
     durationMinutes: 60,
   });
   const t = translations[language];
-
-  function formatDate(isoDate) {
-    return new Date(isoDate).toLocaleString(language === "am" ? "am-ET" : "en-US");
-  }
-
-  async function loadBookings() {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/bookings");
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to fetch bookings.");
-      }
-      setBookings(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadBookings();
-  }, []);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -158,43 +107,10 @@ export default function HomePage() {
         customerEmail: "",
         startAt: "",
       }));
-      setBookings((prev) =>
-        [...prev, data].sort((a, b) => new Date(a.startAt) - new Date(b.startAt))
-      );
     } catch (err) {
       setError(err.message);
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function handleCancelBooking(bookingId) {
-    setError("");
-    setSuccess("");
-    setNotificationInfo(null);
-
-    try {
-      setCancellingId(bookingId);
-      const response = await fetch(
-        `/api/bookings?id=${encodeURIComponent(bookingId)}`,
-        {
-          method: "DELETE",
-        }
-      );
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Could not cancel booking.");
-      }
-
-      setBookings((prev) => prev.filter((booking) => booking.id !== bookingId));
-      // Keep schedule in sync with server-backed calendar data.
-      await loadBookings();
-      setSuccess(t.cancelSuccess);
-      setNotificationInfo(data.notificationSummary || null);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setCancellingId("");
     }
   }
 
@@ -307,65 +223,10 @@ export default function HomePage() {
 
           {error && <p className="error">{error}</p>}
           {success && <p className="success">{success}</p>}
-          {notificationInfo && (
-            <div className="notification-card">
-              <h3>{t.notificationStatus}</h3>
-              <div className="notification-grid">
-                <p>
-                  <strong>{t.customerNotificationSent}</strong>
-                </p>
-                <p>
-                  <strong>{t.workerNotificationsSent}</strong> {notificationInfo.sentToWorkers}
-                </p>
-                <p>
-                  <strong>{t.totalRecipients}</strong> {notificationInfo.recipientsCount}
-                </p>
-                {notificationInfo.recipientsCount > 0 && (
-                  <p>
-                    <strong>{t.emailRecipients}</strong> {notificationInfo.recipientsCount}
-                  </p>
-                )}
-              </div>
-              {notificationInfo.warning && (
-                <p className="warning">
-                  {t.warningPrefix} {notificationInfo.warning}
-                </p>
-              )}
-            </div>
-          )}
-        </article>
-
-        <article className="schedule-card">
-          <h2>{t.upcomingBookings}</h2>
-          {loading ? (
-            <p>{t.loadingBookings}</p>
-          ) : bookings.length === 0 ? (
-            <p>{t.noBookings}</p>
-          ) : (
-            <ul className="booking-list">
-              {bookings.map((booking) => (
-                <li key={booking.id} className="booking-item">
-                  <div className="booking-item-top">
-                    <strong>{booking.customerName}</strong>
-                    <span className="booking-service">
-                      {t.serviceLabels[booking.serviceType] || booking.serviceType}
-                    </span>
-                  </div>
-                  <span className="booking-email">{booking.customerEmail}</span>
-                  <span className="booking-time">
-                    {formatDate(booking.startAt)} {t.to} {formatDate(booking.endAt)}
-                  </span>
-                  <button
-                    type="button"
-                    className="cancel-booking-btn"
-                    onClick={() => handleCancelBooking(booking.id)}
-                    disabled={cancellingId === booking.id}
-                  >
-                    {cancellingId === booking.id ? t.cancelling : t.cancelBooking}
-                  </button>
-                </li>
-              ))}
-            </ul>
+          {notificationInfo?.warning && (
+            <p className="warning">
+              {t.warningPrefix} {notificationInfo.warning}
+            </p>
           )}
         </article>
       </section>
